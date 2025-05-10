@@ -1,0 +1,18 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "net.zhaiji.grindstoneplus.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "refmap": "grindstone_plus.refmap.json",
+  "mixins": [
+    "GrindstoneMenuMixin",
+    "GrindstoneMenuMixin$GrindstoneMenu$3Mixin",
+    "GrindstoneMenuMixin$GrindstoneMenu$4Mixin"
+  ],
+  "client": [
+    "GrindstoneScreenMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
