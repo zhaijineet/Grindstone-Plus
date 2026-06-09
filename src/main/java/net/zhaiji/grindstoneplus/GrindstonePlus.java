@@ -11,5 +11,6 @@ public class GrindstonePlus {
 
     public GrindstonePlus(IEventBus modEventBus, ModContainer modContainer) {
         modContainer.registerConfig(ModConfig.Type.COMMON, GrindstonePlusConfig.SPEC);
+        modEventBus.addListener(GrindstonePlusConfig::handlerModConfigEvent);
     }
 }

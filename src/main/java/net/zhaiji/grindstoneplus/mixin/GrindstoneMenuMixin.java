@@ -6,9 +6,12 @@ import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.tags.EnchantmentTags;
 import net.minecraft.world.Container;
-import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.inventory.*;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.AnvilMenu;
+import net.minecraft.world.inventory.GrindstoneMenu;
+import net.minecraft.world.inventory.MenuType;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
@@ -16,13 +19,14 @@ import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.GrindstoneEvent;
-import net.zhaiji.grindstoneplus.GrindstoneMenuInterface;
 import net.zhaiji.grindstoneplus.GrindstonePlusConfig;
+import net.zhaiji.grindstoneplus.IGrindstoneMenu;
 import net.zhaiji.grindstoneplus.compat.TaxFreeLevelsCompat;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -31,65 +35,93 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.util.Objects;
 
 @Mixin(GrindstoneMenu.class)
-public abstract class GrindstoneMenuMixin extends AbstractContainerMenu implements GrindstoneMenuInterface {
+public abstract class GrindstoneMenuMixin extends AbstractContainerMenu implements IGrindstoneMenu {
     @Shadow
     public Container repairSlots;
-    @Shadow
+    @Unique
+    private boolean isModResult;
+    @Unique
+    private boolean wasExtractMode;
+    @Unique
+    private ItemStack lastInputItem;
+    @Unique
+    private int cost;
     @Final
+    @Shadow
     private Container resultSlots;
     @Shadow
     private int xp;
-    public Player player;
-    public int cost;
 
-    protected GrindstoneMenuMixin(@Nullable MenuType<?> menuType, int containerId) {
+    public GrindstoneMenuMixin(@Nullable MenuType<?> menuType, int containerId) {
         super(menuType, containerId);
     }
 
-    @Inject(method = "<init>(ILnet/minecraft/world/entity/player/Inventory;Lnet/minecraft/world/inventory/ContainerLevelAccess;)V", at = @At("RETURN"))
-    public void grindstonePlus$init(int containerId, Inventory playerInventory, ContainerLevelAccess access, CallbackInfo ci) {
-        this.player = playerInventory.player;
-    }
-
-    @Inject(method = "createResult", at = @At("HEAD"), cancellable = true)
+    @Inject(
+        method = "createResult",
+        at = @At("HEAD"),
+        cancellable = true
+    )
     public void grindstonePlus$createResult(CallbackInfo ci) {
-        this.cost = 0;
-        if (this.canCreateResult()) {
-            ItemStack itemStack1 = this.repairSlots.getItem(0);
-            ItemStack itemStack2 = this.repairSlots.getItem(1);
-            GrindstoneEvent.OnPlaceItem event = new GrindstoneEvent.OnPlaceItem(itemStack1, itemStack2, this.xp);
-            if (NeoForge.EVENT_BUS.post(event).isCanceled()) {
-                this.xp = -1;
-                this.resultSlots.setItem(0, ItemStack.EMPTY);
-            } else if (event.getOutput().isEmpty()) {
-                this.xp = Integer.MIN_VALUE;
-                this.resultSlots.setItem(0, this.createResultItem(itemStack1));
-            } else {
-                this.xp = event.getXp();
-                this.resultSlots.setItem(0, event.getOutput());
+        cost = 0;
+        isModResult = false;
+        xp = -1;
+        if (canCreateResult()) {
+            ItemStack itemStack1 = repairSlots.getItem(0);
+            if (itemStack1 != lastInputItem) {
+                wasExtractMode = false;
+                lastInputItem = itemStack1;
             }
-            this.broadcastChanges();
+            ItemStack itemStack2 = repairSlots.getItem(1);
+            GrindstoneEvent.OnPlaceItem event = new GrindstoneEvent.OnPlaceItem(itemStack1, itemStack2, xp);
+            if (NeoForge.EVENT_BUS.post(event).isCanceled()) {
+                xp = -1;
+                resultSlots.setItem(0, ItemStack.EMPTY);
+            } else if (event.getOutput().isEmpty()) {
+                isModResult = true;
+                xp = Integer.MIN_VALUE;
+                resultSlots.setItem(0, createResultItem(itemStack1));
+            } else {
+                xp = event.getXp();
+                resultSlots.setItem(0, event.getOutput());
+            }
+            broadcastChanges();
+            if (!isSplitLevelMode()) {
+                wasExtractMode = true;
+            }
             ci.cancel();
+        } else {
+            wasExtractMode = false;
         }
     }
 
     @Override
     public boolean canCreateResult() {
-        ItemStack itemStack1 = this.repairSlots.getItem(0);
-        ItemStack itemStack2 = this.repairSlots.getItem(1);
-        ItemEnchantments itemEnchantments = this.getEnchantments(itemStack1);
-        boolean hasNonCurse = false;
-        if (this.canTransferCurses()) {
-            hasNonCurse = true;
-        } else {
-            for (Object2IntMap.Entry<Holder<Enchantment>> entry : itemEnchantments.entrySet()) {
+        ItemStack itemStack1 = repairSlots.getItem(0);
+        ItemStack itemStack2 = repairSlots.getItem(1);
+        if (!itemStack2.is(Items.BOOK)) return false;
+
+        ItemEnchantments enchantments = getEnchantments(itemStack1);
+        if (enchantments.isEmpty()) return false;
+
+        // 检查是否有可提取的附魔（非诅咒，或允许转移诅咒时所有附魔）
+        boolean hasExtractable = canTransferCurses();
+        if (!hasExtractable) {
+            for (Object2IntMap.Entry<Holder<Enchantment>> entry : enchantments.entrySet()) {
                 if (!entry.getKey().is(EnchantmentTags.CURSE)) {
-                    hasNonCurse = true;
+                    hasExtractable = true;
                     break;
                 }
             }
         }
-        return (itemStack2.is(Items.BOOK) && hasNonCurse && (!itemEnchantments.isEmpty() || itemStack1.is(Items.ENCHANTED_BOOK)) && (itemEnchantments.size() > 1 || !itemStack1.is(Items.ENCHANTED_BOOK)));
+        if (!hasExtractable) return false;
+
+        boolean isEnchantedBook = itemStack1.is(Items.ENCHANTED_BOOK);
+        // 提取/拆附魔模式：非附魔书，或附魔书有 >1 个附魔
+        boolean canExtract = enchantments.size() > 1 || !isEnchantedBook;
+        // 拆等级模式：附魔书只有 1 个附魔且等级 > 1
+        boolean canSplitLevel = isEnchantedBook && enchantments.size() == 1 && enchantments.entrySet().iterator().next().getIntValue() > 1;
+
+        return canExtract || canSplitLevel;
     }
 
     @Override
@@ -102,46 +134,108 @@ public abstract class GrindstoneMenuMixin extends AbstractContainerMenu implemen
     @Override
     public ItemStack createResultItem(ItemStack stack) {
         ItemStack enchantedBook = new ItemStack(Items.ENCHANTED_BOOK);
-        EnchantmentHelper.updateEnchantments(enchantedBook, mutable -> {
-            boolean isEnchantedBook = stack.is(Items.ENCHANTED_BOOK);
-            for (Object2IntMap.Entry<Holder<Enchantment>> entry : this.getEnchantments(stack).entrySet()) {
-                if (!this.canTransferCurses() && entry.getKey().is(EnchantmentTags.CURSE)) {
-                    continue;
+        boolean isEnchantedBook = stack.is(Items.ENCHANTED_BOOK);
+
+        if (isSplitLevelMode()) {
+            // 拆等级模式：结果为同附魔等级-1
+            Object2IntMap.Entry<Holder<Enchantment>> entry =
+                getEnchantments(stack).entrySet().iterator().next();
+            EnchantmentHelper.updateEnchantments(enchantedBook, mutable ->
+                mutable.set(entry.getKey(), entry.getIntValue() - 1)
+            );
+        } else {
+            // 提取/拆附魔模式
+            EnchantmentHelper.updateEnchantments(enchantedBook, mutable -> {
+                for (Object2IntMap.Entry<Holder<Enchantment>> entry : getEnchantments(stack).entrySet()) {
+                    if (!canTransferCurses() && entry.getKey().is(EnchantmentTags.CURSE)) {
+                        continue;
+                    }
+                    mutable.set(entry.getKey(), entry.getIntValue());
+                    if (isEnchantedBook) {
+                        break;
+                    }
                 }
-                mutable.set(entry.getKey(), entry.getIntValue());
-                if (isEnchantedBook) {
-                    break;
-                }
+            });
+        }
+
+        // 对输出物品应用铁砧逆运算修复惩罚
+        int inputRepairCost = stack.getOrDefault(DataComponents.REPAIR_COST, 0);
+        enchantedBook.set(DataComponents.REPAIR_COST, IGrindstoneMenu.calculateDecreasedRepairCost(inputRepairCost));
+
+        // 计算经验消耗（基于输出物品的附魔数量）
+        int enchantCount = getEnchantments(stack).size();
+        if (GrindstonePlusConfig.costType == GrindstonePlusConfig.CostType.COUNT_COST) {
+            cost = enchantCount;
+        } else if (GrindstonePlusConfig.costType == GrindstonePlusConfig.CostType.FIXED_COST) {
+            cost = GrindstonePlusConfig.fixedCost;
+        } else if (GrindstonePlusConfig.costType == GrindstonePlusConfig.CostType.ANVIL_COST) {
+            for (int index = 0; index < enchantCount; index++) {
+                cost = AnvilMenu.calculateIncreasedRepairCost(cost);
             }
-        });
-        if (GrindstonePlusConfig.costType.equals(GrindstonePlusConfig.CostType.COUNT_COST)) {
-            this.cost = this.getEnchantments(enchantedBook).size();
-        } else if (GrindstonePlusConfig.costType.equals(GrindstonePlusConfig.CostType.FIXED_COST)) {
-            this.cost = GrindstonePlusConfig.fixedCost;
-        } else if ((GrindstonePlusConfig.costType.equals(GrindstonePlusConfig.CostType.ANVIL_COST))) {
-            for (int index = 0; index < this.getEnchantments(enchantedBook).size(); index++) {
-                this.cost = AnvilMenu.calculateIncreasedRepairCost(this.cost);
-            }
-            if (this.cost > 40) {
-                this.cost = 39;
+            if (cost > 40) {
+                cost = 39;
             }
         }
+
         return enchantedBook;
     }
 
     @Override
     public boolean needCost() {
-        return !GrindstonePlusConfig.costType.equals(GrindstonePlusConfig.CostType.NO_COST);
+        return GrindstonePlusConfig.costType != GrindstonePlusConfig.CostType.NO_COST;
     }
 
     @Override
     public int getCost() {
-        return this.cost;
+        return cost;
     }
 
     @Override
     public boolean canTransferCurses() {
         return GrindstonePlusConfig.transferCurses;
+    }
+
+    @Override
+    public boolean isSplitLevelMode() {
+        ItemStack itemStack1 = repairSlots.getItem(0);
+        if (!itemStack1.is(Items.ENCHANTED_BOOK)) return false;
+        ItemEnchantments enchantments = getEnchantments(itemStack1);
+        if (enchantments.size() != 1) return false;
+        return enchantments.entrySet().iterator().next().getIntValue() > 1;
+    }
+
+    @Override
+    public boolean isModResult() {
+        return isModResult;
+    }
+
+    @Inject(
+        method = "quickMoveStack",
+        at = @At("HEAD"),
+        cancellable = true
+    )
+    public void grindstonePlus$quickMoveStack(Player player, int index, CallbackInfoReturnable<ItemStack> cir) {
+        if (index == 2 && isModResult()) {
+            if (isSplitLevelMode() && wasExtractMode) {
+                wasExtractMode = false;
+                cir.setReturnValue(ItemStack.EMPTY);
+                cir.cancel();
+                return;
+            }
+            if (!player.hasInfiniteMaterials() && needCost()) {
+                if (TaxFreeLevelsCompat.isLoad()) {
+                    if (player.totalExperience < TaxFreeLevelsCompat.computeCost(getCost())) {
+                        cir.setReturnValue(ItemStack.EMPTY);
+                        cir.cancel();
+                    }
+                } else {
+                    if (player.experienceLevel < getCost()) {
+                        cir.setReturnValue(ItemStack.EMPTY);
+                        cir.cancel();
+                    }
+                }
+            }
+        }
     }
 
     @Mixin(targets = "net/minecraft/world/inventory/GrindstoneMenu$3")
@@ -150,7 +244,11 @@ public abstract class GrindstoneMenuMixin extends AbstractContainerMenu implemen
             super(container, slot, x, y);
         }
 
-        @Inject(method = "mayPlace", at = @At("HEAD"), cancellable = true)
+        @Inject(
+            method = "mayPlace",
+            at = @At("HEAD"),
+            cancellable = true
+        )
         public void grindstonePlus$mayPlace(ItemStack stack, CallbackInfoReturnable<Boolean> cir) {
             cir.setReturnValue(true);
         }
@@ -164,14 +262,22 @@ public abstract class GrindstoneMenuMixin extends AbstractContainerMenu implemen
 
         @Override
         public boolean mayPickup(Player player) {
-            GrindstoneMenuInterface menuInterface = (GrindstoneMenuInterface) player.containerMenu;
-            return (player.hasInfiniteMaterials() || !menuInterface.needCost() || player.experienceLevel >= menuInterface.getCost());
+            IGrindstoneMenu menuInterface = (IGrindstoneMenu) player.containerMenu;
+            if (player.hasInfiniteMaterials() || !menuInterface.needCost()) return true;
+            if (TaxFreeLevelsCompat.isLoad()) {
+                return player.totalExperience >= TaxFreeLevelsCompat.computeCost(menuInterface.getCost());
+            }
+            return player.experienceLevel >= menuInterface.getCost();
         }
 
-        @Inject(method = "onTake", at = @At("HEAD"), cancellable = true)
+        @Inject(
+            method = "onTake",
+            at = @At("HEAD"),
+            cancellable = true
+        )
         public void grindstonePlus$onTake(Player player, ItemStack stack, CallbackInfo ci) {
             GrindstoneMenu menu = (GrindstoneMenu) player.containerMenu;
-            GrindstoneMenuInterface menuInterface = (GrindstoneMenuInterface) player.containerMenu;
+            IGrindstoneMenu menuInterface = (IGrindstoneMenu) player.containerMenu;
             if (menuInterface.canCreateResult()) {
                 ItemStack itemStack1 = menu.repairSlots.getItem(0);
                 ItemStack itemStack2 = menu.repairSlots.getItem(1);
@@ -179,43 +285,51 @@ public abstract class GrindstoneMenuMixin extends AbstractContainerMenu implemen
                     menu.access.execute((level, pos) -> {
                         level.levelEvent(1042, pos, 0);
                     });
-                    if (!player.getAbilities().instabuild && menuInterface.needCost()) {
-                        if (TaxFreeLevelsCompat.isLoad()) {
-                            player.giveExperiencePoints(-TaxFreeLevelsCompat.computeCost(menuInterface.getCost()));
-                        }else {
-                            player.giveExperienceLevels(-menuInterface.getCost());
+                    if (menuInterface.isModResult()) {
+                        if (!player.hasInfiniteMaterials() && menuInterface.needCost()) {
+                            if (TaxFreeLevelsCompat.isLoad()) {
+                                player.giveExperiencePoints(-TaxFreeLevelsCompat.computeCost(menuInterface.getCost()));
+                            } else {
+                                player.giveExperienceLevels(-menuInterface.getCost());
+                            }
                         }
+                        repairTransition(itemStack1, menuInterface);
                     }
-                    this.repairTransition(itemStack1, menuInterface);
                     itemStack2.shrink(1);
                     menu.repairSlots.setChanged();
-                    ci.cancel();
                 }
+                ci.cancel();
             }
         }
 
-        public ItemStack repairTransition(ItemStack stack, GrindstoneMenuInterface menu) {
-            boolean isEnchantedBook = stack.is(Items.ENCHANTED_BOOK);
-            ItemEnchantments itemEnchantments = EnchantmentHelper.updateEnchantments(stack, mutable -> {
-                for (Object2IntMap.Entry<Holder<Enchantment>> entry : menu.getEnchantments(stack).entrySet()) {
-                    if (!menu.canTransferCurses() && entry.getKey().is(EnchantmentTags.CURSE)) {
-                        continue;
+        public ItemStack repairTransition(ItemStack stack, IGrindstoneMenu menu) {
+            if (menu.isSplitLevelMode()) {
+                // 拆等级模式：附魔等级 -1
+                Object2IntMap.Entry<Holder<Enchantment>> entry =
+                    menu.getEnchantments(stack).entrySet().iterator().next();
+                EnchantmentHelper.updateEnchantments(stack, mutable ->
+                    mutable.set(entry.getKey(), entry.getIntValue() - 1)
+                );
+            } else {
+                // 提取/拆附魔模式：移除被提取的附魔
+                boolean isEnchantedBook = stack.is(Items.ENCHANTED_BOOK);
+                EnchantmentHelper.updateEnchantments(stack, mutable -> {
+                    for (Object2IntMap.Entry<Holder<Enchantment>> entry : menu.getEnchantments(stack).entrySet()) {
+                        if (!menu.canTransferCurses() && entry.getKey().is(EnchantmentTags.CURSE)) {
+                            continue;
+                        }
+                        mutable.set(entry.getKey(), 0);
+                        if (isEnchantedBook) {
+                            break;
+                        }
                     }
-                    mutable.set(entry.getKey(), 0);
-                    if (isEnchantedBook) {
-                        break;
-                    }
-                }
-            });
-            int j = itemEnchantments.size();
-            if (isEnchantedBook) {
-                j = Math.max(0, j - 1);
+                });
             }
-            int i = 0;
-            for (int index = 0; index < j; index++) {
-                i = AnvilMenu.calculateIncreasedRepairCost(i);
-            }
-            stack.set(DataComponents.REPAIR_COST, i);
+
+            // 对输入物品应用铁砧逆运算修复惩罚（最小为0，不会变负）
+            int currentRepairCost = stack.getOrDefault(DataComponents.REPAIR_COST, 0);
+            stack.set(DataComponents.REPAIR_COST, IGrindstoneMenu.calculateDecreasedRepairCost(currentRepairCost));
+
             return stack;
         }
     }

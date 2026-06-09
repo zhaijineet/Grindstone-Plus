@@ -5,8 +5,10 @@ import net.neoforged.fml.ModList;
 public class TaxFreeLevelsCompat {
     public static final String MOD_ID = "taxfreelevels";
 
-    public static boolean isLoad(){
-        return ModList.get().isLoaded(TaxFreeLevelsCompat.MOD_ID);
+    private static boolean TFLLoad = ModList.get().isLoaded(MOD_ID);
+
+    public static boolean isLoad() {
+        return TFLLoad;
     }
 
     private static int getXpNeededForNextLevel(int level) {
@@ -20,15 +22,7 @@ public class TaxFreeLevelsCompat {
     public static int computeCost(int level) {
         int cost = 0;
         for (int i = 0; i < level; i++) {
-            cost += TaxFreeLevelsCompat.getXpNeededForNextLevel(i);
-        }
-        return cost;
-    }
-
-    public static int computeCost(int form, int to) {
-        int cost = 0;
-        for (int i = form; i < to; i++) {
-            cost += TaxFreeLevelsCompat.getXpNeededForNextLevel(i);
+            cost += getXpNeededForNextLevel(i);
         }
         return cost;
     }
