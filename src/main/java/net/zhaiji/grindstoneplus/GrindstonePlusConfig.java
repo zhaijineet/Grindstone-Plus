@@ -1,11 +1,8 @@
 package net.zhaiji.grindstoneplus;
 
 import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.config.ModConfigEvent;
 
-@Mod.EventBusSubscriber(modid = GrindstonePlus.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD)
 public class GrindstonePlusConfig {
     public static CostType costType;
     public static int fixedCost;
@@ -29,7 +26,7 @@ public class GrindstonePlusConfig {
             )
             .defineEnum(
                     "cost_type",
-                    CostType.COUNT_COST
+                    CostType.ANVIL_COST
             );
 
     private static final ForgeConfigSpec.IntValue FIXED_COST_VALUE = BUILDER
@@ -50,8 +47,7 @@ public class GrindstonePlusConfig {
 
     public static final ForgeConfigSpec SPEC = BUILDER.build();
 
-    @SubscribeEvent
-    static void onLoad(final ModConfigEvent event) {
+    public static void handlerModConfigEvent(final ModConfigEvent event) {
         costType = COST_TYPE_ENUM_VALUE.get();
         fixedCost = FIXED_COST_VALUE.get();
         transferCurses = TRANSFER_CURSES.get();
