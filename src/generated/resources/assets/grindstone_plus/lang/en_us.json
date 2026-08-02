@@ -1,0 +1,17 @@
+{
+  "grindstone_plus.configuration.cost_type": "Cost Type",
+  "grindstone_plus.configuration.cost_type.anvil_cost": "Vanilla Anvil Cost",
+  "grindstone_plus.configuration.cost_type.count_cost": "Cost per Enchantment",
+  "grindstone_plus.configuration.cost_type.fixed_cost": "Fixed Cost",
+  "grindstone_plus.configuration.cost_type.no_cost": "No Cost",
+  "grindstone_plus.configuration.cost_type.tooltip": "How experience cost is calculated when extracting enchantments",
+  "grindstone_plus.configuration.fixed_cost": "Fixed Cost",
+  "grindstone_plus.configuration.fixed_cost.tooltip": "Experience cost when cost type is FIXED_COST",
+  "grindstone_plus.configuration.section.server": "Server Settings",
+  "grindstone_plus.configuration.server_config_not_loaded": "Settings in here are only available while a world is loaded.",
+  "grindstone_plus.configuration.server_config_while_lan": "Settings in here cannot be edited while your game is open to LAN. Please return to the main menu and load the world again.",
+  "grindstone_plus.configuration.server_config_while_online": "Settings in here are determined by the server and cannot be changed while online.",
+  "grindstone_plus.configuration.title": "Grindstone Plus Configuration",
+  "grindstone_plus.configuration.transfer_curses": "Transfer Curses",
+  "grindstone_plus.configuration.transfer_curses.tooltip": "Allow transferring cursed enchantments"
+}

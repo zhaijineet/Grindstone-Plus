@@ -1,16 +1,6 @@
 package net.zhaiji.grindstoneplus.compat;
 
-import net.minecraftforge.fml.ModList;
-
 public class TaxFreeLevelsCompat {
-    public static final String MOD_ID = "taxfreelevels";
-
-    private static boolean TFLLoad = ModList.get().isLoaded(MOD_ID);
-
-    public static boolean isLoad() {
-        return TFLLoad;
-    }
-
     private static int getXpNeededForNextLevel(int level) {
         if (level >= 30) {
             return 112 + (level - 30) * 9;

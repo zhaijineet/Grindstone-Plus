@@ -1,0 +1,17 @@
+{
+  "grindstone_plus.configuration.cost_type": "消耗类型",
+  "grindstone_plus.configuration.cost_type.anvil_cost": "原版铁砧消耗",
+  "grindstone_plus.configuration.cost_type.count_cost": "按附魔数量消耗",
+  "grindstone_plus.configuration.cost_type.fixed_cost": "固定消耗",
+  "grindstone_plus.configuration.cost_type.no_cost": "无消耗",
+  "grindstone_plus.configuration.cost_type.tooltip": "提取附魔时经验消耗的计算方式",
+  "grindstone_plus.configuration.fixed_cost": "固定消耗",
+  "grindstone_plus.configuration.fixed_cost.tooltip": "当消耗类型为固定消耗时收取的经验值",
+  "grindstone_plus.configuration.section.server": "服务器设置",
+  "grindstone_plus.configuration.server_config_not_loaded": "此处的配置仅在加载世界后可用。",
+  "grindstone_plus.configuration.server_config_while_lan": "游戏开放局域网时无法编辑此处的配置。请返回主菜单并重新加载世界。",
+  "grindstone_plus.configuration.server_config_while_online": "此处的配置由服务器决定，联机时无法更改。",
+  "grindstone_plus.configuration.title": "Grindstone Plus 配置",
+  "grindstone_plus.configuration.transfer_curses": "转移诅咒附魔",
+  "grindstone_plus.configuration.transfer_curses.tooltip": "允许转移诅咒附魔"
+}
