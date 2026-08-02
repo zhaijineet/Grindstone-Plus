@@ -1,0 +1,13 @@
+{
+  "grindstone_plus.configuration.cost_type": "消耗类型",
+  "grindstone_plus.configuration.cost_type.anvil_cost": "原版铁砧消耗",
+  "grindstone_plus.configuration.cost_type.count_cost": "按附魔数量消耗",
+  "grindstone_plus.configuration.cost_type.fixed_cost": "固定消耗",
+  "grindstone_plus.configuration.cost_type.no_cost": "无消耗",
+  "grindstone_plus.configuration.cost_type.tooltip": "提取附魔时经验消耗的计算方式",
+  "grindstone_plus.configuration.fixed_cost": "固定消耗",
+  "grindstone_plus.configuration.fixed_cost.tooltip": "当消耗类型为固定消耗时收取的经验值",
+  "grindstone_plus.configuration.title": "Grindstone Plus 配置",
+  "grindstone_plus.configuration.transfer_curses": "转移诅咒附魔",
+  "grindstone_plus.configuration.transfer_curses.tooltip": "允许转移诅咒附魔"
+}
