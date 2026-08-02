@@ -1,21 +1,26 @@
 package net.zhaiji.grindstoneplus;
 
-import net.neoforged.fml.event.config.ModConfigEvent;
+import net.minecraft.network.chat.Component;
 import net.neoforged.neoforge.common.ModConfigSpec;
+import net.neoforged.neoforge.common.TranslatableEnum;
+
+import java.util.Locale;
 
 public class GrindstonePlusConfig {
-    public static CostType costType;
-    public static int fixedCost;
-    public static boolean transferCurses;
+    public enum CostType implements TranslatableEnum {
+        NO_COST, COUNT_COST, FIXED_COST, ANVIL_COST;
 
-    public enum CostType {
-        NO_COST, COUNT_COST, FIXED_COST, ANVIL_COST
+        @Override
+        public Component getTranslatedName() {
+            return Component.translatable(
+                    GrindstonePlus.MOD_ID + ".configuration.cost_type." + name().toLowerCase(Locale.ROOT)
+            );
+        }
     }
 
-    private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder()
-            .push("Config");
+    private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
 
-    private static final ModConfigSpec.EnumValue<CostType> COST_TYPE_ENUM_VALUE = BUILDER
+    public static final ModConfigSpec.EnumValue<CostType> COST_TYPE_ENUM_VALUE = BUILDER
             .comment(
                     """
                             NO_COST - No experience cost,
@@ -29,7 +34,7 @@ public class GrindstonePlusConfig {
                     CostType.ANVIL_COST
             );
 
-    private static final ModConfigSpec.IntValue FIXED_COST_VALUE = BUILDER
+    public static final ModConfigSpec.IntValue FIXED_COST_VALUE = BUILDER
             .comment("cost type is FIXED_COST, apply this fixed cost")
             .defineInRange(
                     "fixed_cost",
@@ -38,7 +43,7 @@ public class GrindstonePlusConfig {
                     Integer.MAX_VALUE
             );
 
-    private static final ModConfigSpec.BooleanValue TRANSFER_CURSES = BUILDER
+    public static final ModConfigSpec.BooleanValue TRANSFER_CURSES = BUILDER
             .comment("allow transferring cursed enchantments")
             .define(
                     "transfer_curses",
@@ -46,10 +51,4 @@ public class GrindstonePlusConfig {
             );
 
     public static final ModConfigSpec SPEC = BUILDER.build();
-
-    public static void handlerModConfigEvent(final ModConfigEvent event) {
-        costType = COST_TYPE_ENUM_VALUE.get();
-        fixedCost = FIXED_COST_VALUE.get();
-        transferCurses = TRANSFER_CURSES.get();
-    }
 }
